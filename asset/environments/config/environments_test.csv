@@ -1,0 +1,11 @@
+Unnamed: 0,idx,device_id,locale,wallpaper,dpi,darkmode
+0,100,pixel_3,en-US,00_default,0,False
+1,101,pixel_3,en-US,00_default,1,False
+2,102,pixel_3,en-US,09_rainbow,0,True
+3,103,pixel_3,en-US,12_ocean,2,False
+4,104,pixel_3,fr-CA,09_rainbow,0,True
+5,105,pixel_3,ko-KR,12_ocean,2,False
+6,106,pixel_4,en-US,09_rainbow,0,True
+7,107,pixel_5,en-US,12_ocean,0,False
+8,108,pixel_6,ur_PK,05_doughnut,2,True
+9,109,WXGA_Tablet,ar-EG,11_pyramid,0,False

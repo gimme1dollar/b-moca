@@ -1,0 +1,52 @@
+{
+   "device_info": [
+      {
+         "device_id": "pixel_3",
+         "device_code": 18,
+         "physical_setting": [1080, 2160, 440],
+         "icon_size": [440, 330, 550],
+         "category": "pixel",
+         "system_image": "system-images;android-29;google_apis;x86_64"
+      },
+      {
+         "device_id": "pixel_4",
+         "device_code": 22,
+         "physical_setting": [1080, 2280, 440],
+         "icon_size": [440, 330, 550],
+         "category": "pixel",
+         "system_image": "system-images;android-29;google_apis;x86_64"
+      },
+      {
+         "device_id": "pixel_4_xl",
+         "device_code": 23,
+         "physical_setting": [1440, 3040, 560],
+         "icon_size": [560, 460, 660],
+         "category": "pixel",
+         "system_image": "system-images;android-29;google_apis;x86_64"
+      },
+      {
+         "device_id": "pixel_5",
+         "device_code": 25,
+         "physical_setting": [1080, 2340, 440],
+         "icon_size": [440, 330, 550],
+         "category": "pixel",
+         "system_image": "system-images;android-29;google_apis;x86_64"
+      },
+      {
+         "device_id": "pixel_6",
+         "device_code": 26,
+         "physical_setting": [1080, 2400, 420],
+         "icon_size": [440, 330, 700],
+         "category": "pixel",
+         "system_image": "system-images;android-29;google_apis;x86_64"
+      },
+      {
+         "device_id": "WXGA_Tablet",
+         "device_code": 60,
+         "physical_setting": [1200, 800, 440],
+         "icon_size": [160, 130, 177],
+         "category": "pixel",
+         "system_image": "system-images;android-29;google_apis;x86_64"
+      }
+   ]
+}

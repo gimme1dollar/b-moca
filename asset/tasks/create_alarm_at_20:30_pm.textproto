@@ -1,0 +1,21 @@
+reset_steps:[
+  { 
+    adb_request: { 
+      press_button: { 
+        button: HOME  
+      }
+    }
+  }
+]
+
+max_episode_steps: 11
+
+log_parsing_config: {
+  filters: ["ConditionProviders.SCP:D"]
+  log_regexps: {
+    reward_event: {
+        event: "^(.*?)nextUserAlarmTime(.*?)20:30:00"
+        reward: 1
+    }
+  }
+}

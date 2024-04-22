@@ -1,0 +1,21 @@
+reset_steps:[
+  { 
+    adb_request: { 
+      press_button: { 
+        button: HOME  
+      }
+    }
+  }
+]
+
+max_episode_steps: 5
+
+log_parsing_config: {
+  filters: ["BugleUsageStatistics:I"]
+  log_regexps: {
+    reward_event: {
+        event: "^(.*?)BUGLE CREATE(.*?)VIA_DEFAULT"
+        reward: 1
+    }
+  }
+}
