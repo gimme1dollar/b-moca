@@ -11,7 +11,7 @@ from pathlib import Path
 from bmoca.environment.environment import BMocaEnv
 from bmoca.environment.wrapper import GeminiTextActionParsingWrapper
 
-from bmoca.agent.lmm_agent.gemini_vision import load_model, parse_obs, build_prompt
+from bmoca.agent.mllm_agent.gemini_vision import load_model, parse_obs, build_prompt
 
 _HOME_PATH = Path.home()
 _WORK_PATH = os.environ['BMOCA_HOME']

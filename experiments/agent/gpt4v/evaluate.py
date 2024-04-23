@@ -13,7 +13,7 @@ from bmoca.environment.environment import BMocaEnv
 from bmoca.environment.wrapper import GPTActionParsingWrapper
 
 from bmoca.agent.llm_agent.gpt import load_model, parse_obs, build_prompt, parse_act
-from bmoca.agent.lmm_agent.utils import PIL2OpenCV, OpenCV2PIL, encode_image
+from bmoca.agent.mllm_agent.utils import PIL2OpenCV, OpenCV2PIL, encode_image
 
 _HOME_PATH = Path.home()
 _WORK_PATH = os.environ['BMOCA_HOME']
