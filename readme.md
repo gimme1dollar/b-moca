@@ -129,6 +129,3 @@ Some codes are referred from the related work below:
 - AndroidEnv (<a href="https://github.com/google-deepmind/android_env">link</a>)
 - AppAgent (<a href="https://github.com/mnotgod96/AppAgent">link</a>)
 
-## Licnese
-
-MIT License
