@@ -117,8 +117,6 @@ python experiments/agent/bc/train.py
 
 #### Evaluation
 
-You can download our pre-trained checkpoint at ```https://drive.google.com/file/d/1JpMQazylHHlNNXqFZt5eC9bjlU7BEiAQ/view?usp=drive_link```
-
 ```
 python experiments/agent/bc/evaluate.py --model_path="path_to_checkpoint"
 ```
