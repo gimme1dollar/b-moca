@@ -1,0 +1,10 @@
+openai 
+google.generativeai 
+opencv-python 
+Pillow 
+matplotlib 
+pyshine 
+wandb 
+tqdm
+pandas
+Appium-Python-Client

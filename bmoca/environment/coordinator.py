@@ -1,5 +1,22 @@
-"""Coordinator handles interaction between internal components of AndroidEnv."""
+# coding=utf-8
+# Reference from https://github.com/google-deepmind/android_env
+# Copyright 2023 DeepMind Technologies Limited.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+"""Coordinator handles interaction between internal components of AndroidEnv."""
+import io
+import os
 import cv2
 import time
 import copy
@@ -15,6 +32,10 @@ from typing import Any
 from absl import logging
 from collections.abc import Sequence
 
+from appium import webdriver
+from appium.options.common.base import AppiumOptions
+from appium.webdriver.common.appiumby import AppiumBy
+
 from android_env.proto import adb_pb2
 from android_env.proto import state_pb2
 from android_env.proto import task_pb2
@@ -22,9 +43,10 @@ from android_env.components import action_type as action_type_lib
 from android_env.components import adb_call_parser
 from android_env.components import errors
 from android_env.components import specs
-from android_env.components import task_manager as task_manager_lib
 from android_env.components import utils
 from android_env.components.simulators import base_simulator
+
+from bmoca.environment import task_manager as task_manager_lib
 
 _SWIPE_DISTANCE_THRESHOLD = 0.14
 
@@ -54,9 +76,9 @@ def touch_position_to_pixel_position(
 
 class Coordinator:
   """Handles interaction between internal components of BMocaEnv."""
-
   def __init__(
       self,
+      avd_name: str,
       simulator: base_simulator.BaseSimulator,
       task_manager: task_manager_lib.TaskManager,
       state_type: str = 'pixel',
@@ -67,6 +89,7 @@ class Coordinator:
       tmp_dir: str | None = None,
       adjusting_freq: float = 0, #Hz, if 0 then no adjustment
       is_tablet: bool = False,
+      driver_attempts: int = 20
   ):
     """Handles communication between AndroidEnv and its components.
 
@@ -82,6 +105,9 @@ class Coordinator:
     """
     self._simulator = simulator
     self._task_manager = task_manager
+    self._driver = None
+    self.avd_name = avd_name
+    self.driver_attempts = driver_attempts
 
     self._show_touches = show_touches
     self._show_pointer_location = show_pointer_location
@@ -90,6 +116,7 @@ class Coordinator:
 
     self._adb_call_parser: adb_call_parser.AdbCallParser = None
     self._tmp_dir = tmp_dir or tempfile.gettempdir()
+    #self._tmp_dir = f"{os.environ['BMOCA_HOME']}/tmp"
     self._adjusting_freq = adjusting_freq
 
     self.state_type = state_type
@@ -98,10 +125,8 @@ class Coordinator:
     self._is_tablet = is_tablet
 
     # launch simulator
-    logging.info('simulator launching...')
     self._simulator_healthy = False
     self._launch_simulator()
-    logging.info('simulator launched!!!')
 
   def _launch_simulator(self, max_retries: int = 3):
     """Launches the simulator.
@@ -201,8 +226,45 @@ class Coordinator:
     }
     self._send_simulator_action(lift_action)
 
+    if self._is_tablet: # disable auto-rotate and set landscape mode
+      command = f'adb -s emulator-{self._simulator._adb_port-1} shell "settings put system accelerometer_rotation 0"'
+      _ = subprocess.run(command, text=True, shell=True)
+      command = f'adb -s emulator-{self._simulator._adb_port-1} shell "settings put system user_rotation 0"'
+      _ = subprocess.run(command, text=True, shell=True)
+        
     # Reset the task.
     self._task_manager.reset_task()
+    
+    # Reset driver    
+    options = AppiumOptions()
+    options.load_capabilities({
+        "platformName": "Android",
+        "appium:platformVersion": "10",
+        "appium:deviceName": self.avd_name,
+        "appium:automationName": "UiAutomator2",
+        "appium:ensureWebviewsHavePages": True,
+        "appium:nativeWebScreenshot": True,
+        "appium:newCommandTimeout": 90000,
+        "appium:connectHardwareKeyboard": True,
+    })
+    
+    attempt = 0
+    self._driver = None
+    while attempt < self.driver_attempts:
+      try:
+          self._driver = webdriver.Remote("http://127.0.0.1:4723", options=options)
+          break  # Exit the loop if driver is successfully created
+      except Exception as e:
+          attempt += 1
+          print(f"Attempt {attempt} failed: {e}")
+          time.sleep(5)  # Wait for a short period before trying again
+
+    if self._driver:
+        print("Driver successfully created")
+    else:
+        print(f"Failed to create driver after {self.driver_attempts} attempts")
+    
+    self._task_manager._driver = self._driver
 
     # get state
     simulator_signals = self._get_simulator_state()
@@ -246,8 +308,20 @@ class Coordinator:
     if not self._simulator_healthy:
       return dm_env.truncation(reward=0.0, observation=None)
     return self._task_manager.rl_step(simulator_signals)
+  
+  def get_state(self) -> dm_env.TimeStep:
+    try:
+      simulator_signals = self._get_simulator_state()
+    except (errors.ReadObservationError, socket.error):
+      logging.exception('Unable to fetch observation. Restarting simulator.')
+      self._simulator_healthy = False
 
-  def _get_simulator_state(self, start_time=None) -> dict[str, np.ndarray]:
+    # return transition
+    if not self._simulator_healthy:
+      return dm_env.truncation(reward=0.0, observation=None)
+    return self._task_manager.rl_step(simulator_signals)
+    
+  def _get_simulator_state(self) -> dict[str, np.ndarray]:
     """Gathers data from various sources to assemble the RL observation."""  
     # adjust frequency for robust observation acquisition
     if self._adjusting_freq > 0: 
@@ -263,32 +337,12 @@ class Coordinator:
       pixel = pixel / 255.0
 
     res_state['pixel'] = pixel
-
+    
     # text states
-    if self.state_type == 'text':
-      try:
-          _adb_prefix = self._simulator._adb_controller.command_prefix()
-
-          # get xml 
-          dump_command = _adb_prefix + ['shell', 'uiautomator', 'dump']
-          subprocess.run(dump_command, check=True)
-
-          cat_command = _adb_prefix + [
-              'pull',
-              '/sdcard/window_dump.xml',
-              f'{self._tmp_dir}/ui_hierarchy.xml',
-          ]
-          subprocess.run(cat_command, check=True, capture_output=True, text=True)
-
-          # build hierarchy tree
-          xml_path = f'{self._tmp_dir}/ui_hierarchy.xml'
-          ui_hierarchy = xml_element_tree.iterparse(xml_path)
-
-      except subprocess.CalledProcessError as e:
-          logging.error(f'Command failed: {e}')
-          ui_hierarchy = None
-  
-      res_state['text'] = ui_hierarchy
+    view_hierachy_string = self._driver.page_source
+    xml_file_like = io.StringIO(view_hierachy_string)
+    view_hierachy = xml_element_tree.iterparse(xml_file_like)
+    res_state['text'] = view_hierachy
   
     return res_state
 
@@ -307,9 +361,11 @@ class Coordinator:
     is_touch = (action['action_type'] == action_type_lib.ActionType.TOUCH)
     touch_position = action['touch_position']
     if self._is_tablet: 
-      touch_position = touch_position[::-1] # w, h reversed
-      touch_position[0] = 1 - touch_position[0] # x reversed
+      # touch_position = touch_position[::-1] # w, h reversed
+      # touch_position[0] = 1 - touch_position[0] # x reversed
+      pass
     touch_pixels = touch_position_to_pixel_position(touch_position, height_width=self._screen_size)
+    # print(f"touch_pixels: {touch_pixels} (touch/lift: {action['action_type'] == action_type_lib.ActionType.TOUCH})")
 
     try:
         self._simulator.send_touch([(touch_pixels[1], touch_pixels[0], is_touch, 0)])

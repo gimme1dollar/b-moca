@@ -3,4 +3,4 @@
 port=$1
 adb -s emulator-$port emu kill;
 echo "Emulator turn off complete"
-sleep 10
+sleep 20

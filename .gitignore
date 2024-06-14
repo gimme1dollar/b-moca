@@ -20,3 +20,4 @@ asset/environments/resource/wallpapers_bmp
 *.pt
 *.pdf
 *.npy
+*DS_Store

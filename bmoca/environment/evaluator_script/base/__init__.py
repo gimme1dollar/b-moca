@@ -1,0 +1,9 @@
+from .call_white_house import check_call_white_house
+from .call_contact_center import check_call_contact_center
+from .call_311311 import check_call_311311
+
+from .alarm1030am_midweek import check_alarm1030am_midweek
+from .alarm1030am_weekend import check_alarm1030am_weekend
+from .alarm1030am_weekday import check_alarm1030am_weekday
+
+from .chrome_newtab import check_new_tab

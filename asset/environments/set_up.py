@@ -9,11 +9,20 @@ import sys
 from PIL import Image
 from tqdm import tqdm
 
+# scripts for app settigns
+from script.snapseed_init import snapseed_init 
+from script.wikipedia_init import wikipedia_init
+from script.chrome_init import chrome_init
+from script.instagram_login import login_instagram
+from script.walmart_init import walmart_init
+
+
 _WORK_PATH = os.environ["BMOCA_HOME"]
 _LOG_PATH = f"{_WORK_PATH}/logs"
 _CONFIG_PATH = f"{_WORK_PATH}/asset/environments/config"
 _SCRIPT_PATH = f"{_WORK_PATH}/asset/environments/script"
 _RESOURCE_PATH = f"{_WORK_PATH}/asset/environments/resource"
+_APPIUM_PATH = f"{os.environ['HOME']}/.nvm/versions/node/v18.12.1/bin/appium"
 
 
 def convert_jpg_to_bmp():
@@ -21,7 +30,7 @@ def convert_jpg_to_bmp():
     dst_path = f"{_RESOURCE_PATH}/wallpapers_bmp"
 
     if not os.path.isdir(dst_path):
-        os.mkdir(dst_path)
+        os.makedirs(dst_path)
 
     for jpg in tqdm(list(set(glob.glob(src_path + "*/*.jpg", recursive=True)))):
         img = Image.open(jpg)
@@ -77,6 +86,9 @@ class EnvBuilder:
                 self.system_image[device["device_id"]] = device["system_image"]
 
             self.device_info = tmp
+            
+            with open(f"{_CONFIG_PATH}/account_info.json", "r") as ac:
+                self.account_info = json.load(ac)
 
 
     def emulator_on(self, device_id):
@@ -94,10 +106,12 @@ class EnvBuilder:
 
         time.sleep(5)
 
+
     def emulator_off(self, device_id):
         """turn off all devices"""
         cmd = f"/bin/bash {_SCRIPT_PATH}/emulator_off.sh {self.port[device_id]}"
         _ = subprocess.run(cmd, text=True, shell=True)
+
 
     def permission_init(self, id):
         command = f'adb -s emulator-{self.port[id]} shell wm size 1080x2160'
@@ -115,6 +129,7 @@ class EnvBuilder:
         _ = subprocess.run(command, text=True, shell=True)            
         time.sleep(3)
 
+
     def snapshot_save(self, device_id, snapshot_name):
         if snapshot_name == "init": # default
             cmd = (
@@ -126,15 +141,18 @@ class EnvBuilder:
             )
         _ = subprocess.run(cmd, text=True, shell=True)
 
+
     def snapshot_load(self, device_id, snapshot_name="init"):
         cmd = (
             f"/bin/bash {_SCRIPT_PATH}/snapshot_load.sh {snapshot_name} {self.port[device_id]}"
         )
         _ = subprocess.run(cmd, text=True, shell=True)
 
+
     def set_root_previlage(self, device_id):
         cmd = f"adb -s emulator-{self.port[device_id]} root"
         _ = subprocess.run(cmd, text=True, shell=True)
+
 
     def set_wallpaper(self, device_id, wallpaper_name):
         if self.device_type[device_id] != 'pixel':
@@ -146,34 +164,88 @@ class EnvBuilder:
             cmd = f"/bin/bash {_SCRIPT_PATH}/set_wallpaper_bmp.sh {wallpaper_bmp} {self.port[device_id]}"
             _ = subprocess.run(cmd, text=True, shell=True)
 
+
     def set_locale(self, device_id, locale='en-US'):
         cmd = f"/bin/bash {_SCRIPT_PATH}/set_locale.sh {locale} {self.port[device_id]}"
         _ = subprocess.run(cmd, text=True, shell=True)
         time.sleep(30)
+
 
     def set_dpi(self, device_id, size):
         cmd = f"/bin/bash {_SCRIPT_PATH}/set_dpi.sh {self.icon_sizes[device_id][int(size)]} {self.dpi[int(size)]} {self.port[device_id]}"
         _ = subprocess.run(cmd, text=True, shell=True)
         time.sleep(3)
 
+
     def set_darkmode(self, device_id):
         cmd = f'adb -s emulator-{self.port[device_id]} shell "su 0 cmd uimode night yes"'
         _ = subprocess.run(cmd, text=True, shell=True)
         time.sleep(5)
+        
+        
+    def set_alarm(self, device_id):
+        cmd = f'/bin/bash {_SCRIPT_PATH}/set_alarm.sh {_RESOURCE_PATH}/alarm_db/alarms.db {self.port[device_id]}'
+        _ = subprocess.run(cmd, text=True, shell=True)
+        self.set_root_previlage(device_id) # after the alarm is set, root privilege is reset.
+        return
+        
+        
+    def apk_install(self, device_id, apk_dir):
+        for apk_file in os.listdir(apk_dir):
+            apk_path = os.path.join(apk_dir, apk_file)
+            cmd = f'adb -s emulator-{self.port[device_id]} install -r {apk_path}'
+            _ = subprocess.run(cmd, text=True, shell=True)
+            time.sleep(3)
+            
+            
+    def apk_disable(self, device_id):
+        # Drive app
+        cmd = f'adb -s emulator-{self.port[device_id]} shell pm disable-user --user 0 com.google.android.apps.docs'
+        _ = subprocess.run(cmd, text=True, shell=True)
+        time.sleep(1)
+        # Play Video app
+        cmd = f'adb -s emulator-{self.port[device_id]} shell pm disable-user --user 0 com.google.android.videos'
+        _ = subprocess.run(cmd, text=True, shell=True)
+        time.sleep(1)
+        # Play Music app
+        cmd = f'adb -s emulator-{self.port[device_id]} shell pm disable-user --user 0 com.google.android.music'
+        _ = subprocess.run(cmd, text=True, shell=True)
+        time.sleep(1)
+        
+        
+    def initialize_apps(self, avd_name):
+        # for app_name, account_info in self.account_info.items(): # sign-in instagram
+        #     self.login_app(avd_name, app_name, account_info['id'], account_info['password'])
+        #     print(f'success {app_name} sign-in')
+        chrome_init(avd_name)
+        snapseed_init(avd_name)
+        wikipedia_init(avd_name)
+        walmart_init(avd_name)
+
+        
+    def login_app(self, avd_name, app_name, account_id, account_pw):
+        if app_name == 'instagram':
+            login_instagram(avd_name, account_id, account_pw)
+        else:
+            raise NotImplementedError(f'log-in for {app_name} is not implemented')
+        
 
     def set_home_screen(self, device_id, snapshot_name):
         cmd = f'/bin/bash {_SCRIPT_PATH}/set_home_screen.sh {_RESOURCE_PATH}/home_screen_db/{snapshot_name}.db {self.port[device_id]}'
         _ = subprocess.run(cmd, text=True, shell=True)
+
 
     def set_sound(self, device_id, sound):
         cmd = f"/bin/bash {_SCRIPT_PATH}/set_sound.sh {sound} {self.port[device_id]}"
         _ = subprocess.run(cmd, text=True, shell=True)
         time.sleep(3)
 
+
     def set_brightness(self, device_id, set_brightness):
         cmd = f"/bin/bash {_SCRIPT_PATH}/set_brightness.sh {set_brightness} {self.port[device_id]}"
         _ = subprocess.run(cmd, text=True, shell=True)
         time.sleep(3)
+        
  
     def screenshot_save(self, device_id, snapshot_name):
         if snapshot_name == "init": # default
@@ -184,6 +256,7 @@ class EnvBuilder:
         _ = subprocess.run(cmd, text=True, shell=True)
         print("\n\nScreen shot takend : ", snapshot_name)
         time.sleep(1)
+
 
     def build_devices(self):
         """ make the snapshot of each environment """
@@ -200,12 +273,30 @@ class EnvBuilder:
 
             if self.device_type[device_id] != "pixel":
                 self.permission_init(device_id)
-
+            
+            # disable unnecessary apps
+            self.apk_disable(device_id)
+            
+            # appium server init
+            appium_command = [_APPIUM_PATH]
+            self.appium_process = subprocess.Popen(appium_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            # install the downloaded apks (in asset/environments/resource/apks/*)
+            self.apk_install(device_id, f"{_WORK_PATH}/asset/environments/resource/apks")
+            
+            # init settings of custom apps
+            self.initialize_apps(avd_name)
+            
+            # add image for snapseed tasks
+            command = f'adb push {_RESOURCE_PATH}/image/99_Colosseum.jpg /sdcard/Pictures'
+            _ = subprocess.run(command, text=True, shell=True)
+            
             self.snapshot_save(device_id, "init")
             self.screenshot_save(device_id, "init")
 
             self.emulator_off(device_id)
             time.sleep(5)
+
 
     def build_environments(self, mode="train"):
         """ make the snapshot of each environment """
@@ -235,6 +326,8 @@ class EnvBuilder:
             self.set_wallpaper(device_id, row["wallpaper"])
 
             self.set_dpi(device_id, row["dpi"])
+            
+            self.set_alarm(device_id) #TODO: move to init_app
 
             if row["darkmode"] == "True":
                 self.set_darkmode(device_id)
@@ -284,8 +377,8 @@ if __name__ == "__main__":
     # logging directory
     log_dir = args.log_dir
     avd_log_dir = f"{log_dir}/{args.avd_name}"
-    if not os.path.isdir(log_dir): os.mkdir(log_dir)
-    if not os.path.isdir(avd_log_dir): os.mkdir(avd_log_dir)
+    if not os.path.isdir(log_dir): os.makedirs(log_dir)
+    if not os.path.isdir(avd_log_dir): os.makedirs(avd_log_dir)
     args.log_dir = avd_log_dir
 
     # main run

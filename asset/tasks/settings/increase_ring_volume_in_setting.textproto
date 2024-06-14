@@ -1,0 +1,21 @@
+reset_steps:[
+  { 
+    adb_request: { 
+      press_button: { 
+        button: HOME  
+      }
+    }
+  }
+]
+
+max_episode_steps: 8
+
+log_parsing_config: {
+  filters: ["vol.Events:I"]
+  log_regexps: {
+    reward_event: {
+        event: "^(.*?)STREAM_RING"
+        reward: 1
+    }
+  }
+}

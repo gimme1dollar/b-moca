@@ -1,6 +1,0 @@
-OPENAI_API_KEY: 'put_your_api'
-GEMINI_API_KEY: 'put_your_api'
-TEMPERATURE: 0.1 # 0.0 for the consistent output of model
-TOP_P: 1
-TOP_K: 1
-MAX_TOKENS: 2048

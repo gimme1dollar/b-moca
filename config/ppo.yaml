@@ -1,0 +1,41 @@
+algorithm: ppo
+episode_len: 5
+expr_iters: -1
+train_iters: 10000
+update_interval: 5
+batch_size: 32
+
+seed: 0
+load_buffer: None
+load_weight: None
+eval_at_train: False
+
+env:
+  adjusting_freq: 1.0
+  adb_server_port: 5037
+  train_id: 0
+  test_id: 0
+
+algo:
+  td_step: 1
+  buffer_size: 100000
+  feature_dim: 768
+  actor_hidden_dim: 512
+  critic_hidden_dim: 512
+  lr: 2.0e-4
+  actor_lr: 2.0e-4
+  critic_tau: 0.01
+  critic_gamma: 0.9
+  lmbda: 0.9
+  entropy_alpha: 0.0
+  actor_warm_up_steps: -1
+  update_steps: 1
+  clip_e: 0.1
+  avail_tasks: [gmail/open_Gmail]
+  device: cuda:0
+
+log:
+  checkpoint_name: ppo_gmail
+  buffer_name: ppo_gmail
+  train_log_interval: 50
+  save_interval: 100

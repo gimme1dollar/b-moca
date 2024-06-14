@@ -1,37 +1,52 @@
-"""BMoca environment implementation."""
+# coding=utf-8
+# Reference from https://github.com/google-deepmind/android_env
+# Copyright 2023 DeepMind Technologies Limited.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+"""BMoca environment implementation."""
 import os
 import copy
 import time
 import dm_env
+import datetime
 import subprocess
 import numpy as np
-
-from typing import Any
-from pathlib import Path
 from absl import logging
-from android_env.environment import AndroidEnv
+from pathlib import Path
+from itertools import tee
+from typing import Any, NamedTuple
 
+from android_env.environment import AndroidEnv
 from android_env.proto import state_pb2, snapshot_service_pb2
 from android_env.components import config_classes
-from android_env.components import coordinator as coordinator_lib
-from android_env.components import task_manager as task_manager_lib
 from android_env.components.simulators.emulator import emulator_simulator
 
 from android_env.proto import task_pb2
 from google.protobuf import text_format
 
 from bmoca.environment import coordinator as coordinator_lib
+from bmoca.environment import task_manager as task_manager_lib
 
 import dm_env
 from dm_env import specs, StepType
-from typing import Any, NamedTuple
 
 _HOME_PATH = Path.home()
 _WORK_PATH = os.environ['BMOCA_HOME']
 
 
 class BMocaTimeStep(NamedTuple):
+    env_id: Any
     step_type: Any
     instruction: Any # \in "Goal: {task name}"
     prev_obs: Any
@@ -66,11 +81,19 @@ class BMocaEnv(AndroidEnv):
                emulator_path: str = f'{_HOME_PATH}/.local/share/android/sdk/emulator/emulator',
                adb_path: str = f'{_HOME_PATH}/.local/share/android/sdk/platform-tools/adb',
                run_headless: bool = True,
-               state_type: str = 'pixel', # 'ui_hierarchy'
+               state_type: str = 'pixel', # 'text'
                action_tanh: bool = True,
                adjusting_freq: float = 0,
                ):
     """Initializes the state of this BMocaEnv object."""
+    
+    # informations
+    self.avd_name = avd_name
+    self.instruction = "Goal: " + task_path.split("/")[-1].split(".")[0].replace("_", " ")
+    self.state_type = state_type
+    self.action_tanh = action_tanh
+    self.curr_env_id = None
+    self.appium_servertime = None
 
     # simulator
     self._simulator = emulator_simulator.EmulatorSimulator(
@@ -88,18 +111,26 @@ class BMocaEnv(AndroidEnv):
         ),
     )
 
+    # appium server init
+    appium_command = [f'{_HOME_PATH}/.nvm/versions/node/v18.12.1/bin/appium']
+    self.appium_process = subprocess.Popen(appium_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    self.appium_servertime = datetime.datetime.now()
+    time.sleep(3)
+    
     # task manager
     task = task_pb2.Task()
     with open(task_path, 'r') as proto_file:
       text_format.Parse(proto_file.read(), task)
-    self._task_manager = task_manager_lib.TaskManager(task)
+    self._task_manager = task_manager_lib.TaskManager(task, self.instruction)
     
     # coordinator
-    self._coordinator = coordinator_lib.Coordinator(simulator=self._simulator, 
+    self._coordinator = coordinator_lib.Coordinator(avd_name=avd_name,
+                                                    simulator=self._simulator, 
                                                     task_manager=self._task_manager, 
                                                     state_type=state_type,
                                                     adjusting_freq=adjusting_freq,
-                                                    is_tablet="Tablet" in avd_name)
+                                                    is_tablet="Tablet" in avd_name,
+                                                    driver_attempts=20)
 
     # snapshot lists
     snapshot_list = self._coordinator._simulator._snapshot_stub.ListSnapshots(
@@ -112,17 +143,61 @@ class BMocaEnv(AndroidEnv):
     for snapshot in snapshot_list.snapshots:
         if "env" in snapshot.snapshot_id:
             self.env_id_list.append(snapshot.snapshot_id)
+            
+    return
 
-    # informations
-    self.instruction = "Goal: " + task_path.split("/")[-1].split(".")[0].replace("_", " ")
-    self.state_type = state_type
-    self.action_tanh = action_tanh
-    self.curr_env_id = None
+  def reset(self, target_env_id=None) -> dm_env.TimeStep:
+    """Resets the environment for a new RL episode."""
+        
+    # set device with load
+    if target_env_id is None:
+      target_env_id = np.random.choice(self.env_id_list, 1)[0]
+    self.set_device(load=target_env_id)
+    
+    # get timestep
+    timestep = self.get_state(action=None)
+    return timestep
 
-  def set_device(self, load=False):
-    if load:
-      time.sleep(2)
-          
+  def step(self, action: np.ndarray) -> dm_env.TimeStep:
+    """Takes a step in the environment."""
+    
+    # set device without load
+    self.set_device(load=None)
+
+    # get timestep
+    if self.action_tanh: action = (action + 1.0) / 2.0
+    timestep = self.get_state(action=action)
+    return timestep
+  
+  def set_device(self, load=None):
+    if not (load is None):
+      request = state_pb2.LoadStateRequest(
+                  args = {
+                      'snapshot_name': load
+                  }
+              )
+      
+      # quit driver before loading snapshot
+      if self._coordinator._driver is not None:
+        self._coordinator._driver.quit()
+        self._coordinator._driver = None
+        self._task_manager._driver = None
+      
+      # restart appium server if it has been running for more than 10 minutes
+      if datetime.datetime.now() - self.appium_servertime > datetime.timedelta(minutes=10):
+        self.appium_process.terminate()
+        self.appium_process.wait()
+        appium_command = [f'{_HOME_PATH}/.nvm/versions/node/v18.12.1/bin/appium']
+        self.appium_process = subprocess.Popen(appium_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.appium_servertime = datetime.datetime.now()
+        time.sleep(3)
+    
+      # load snapshot
+      self.curr_env_id = load
+      self._coordinator.load_snapshot(request)
+      time.sleep(2)  
+
+    # misc. settings
     if "06:30" in self.instruction:
         command = f'adb -s emulator-{self._simulator._adb_port-1} shell "su 0 toybox date 123106272015.00"'
         _ = subprocess.run(command, text=True, shell=True)
@@ -141,64 +216,43 @@ class BMocaEnv(AndroidEnv):
     elif "23:30" in self.instruction:
         command = f'adb -s emulator-{self._simulator._adb_port-1} shell "su 0 toybox date 010103302016.00"'
         _ = subprocess.run(command, text=True, shell=True)
-        
     time.sleep(0.1)
+    
     return 
 
-  def reset(self, target_env_id=None) -> dm_env.TimeStep:
-    """Resets the environment for a new RL episode."""
-        
-    # load target snapshot
-    if (target_env_id is None):
-      target_env_id = np.random.choice(self.env_id_list, 1)[0]
-
-    request = state_pb2.LoadStateRequest(
-                args = {
-                    'snapshot_name': target_env_id
-                }
-            )
-  
-    self.curr_env_id = target_env_id
-    self._coordinator.load_snapshot(request)
-    self.set_device(load=True)
-  
+  def get_state(self, action=None):
     # get timestep
-    timestep = self._coordinator.rl_reset()
-    timestep = BMocaTimeStep(step_type=StepType.LAST if timestep.reward > 0 else timestep.step_type,
-                                    instruction=self.instruction,
-                                    prev_obs=None,
-                                    prev_act=None,
-                                    curr_obs=timestep.observation,
-                                    curr_rew=timestep.reward) 
-
-    # TODO: deepcopy doesn't work for iterator (obs['text'])
-    self.prev_obs = copy.deepcopy(timestep.curr_obs)
-    return timestep
-
-  def step(self, action: np.ndarray) -> dm_env.TimeStep:
-    """Takes a step in the environment."""
-
-    if self.action_tanh: action = (action + 1.0) / 2.0
-    timestep = self._coordinator.rl_step(action)
-    timestep = BMocaTimeStep(step_type=StepType.LAST if timestep.reward > 0 else timestep.step_type,
-                                    instruction=self.instruction,
-                                    prev_obs=self.prev_obs,
-                                    prev_act=action,
-                                    curr_obs=timestep.observation,
-                                    curr_rew=timestep.reward) 
-
-    # TODO: deepcopy doesn't work for iterator (obs['text'])
-    self.prev_obs = copy.deepcopy(timestep.curr_obs)
-    self.set_device(load=False)
-
+    if (action is None): 
+      timestep = self._coordinator.rl_reset()
+      self.prev_obs = None
+    else:
+      timestep = self._coordinator.rl_step(action)
+    timestep = BMocaTimeStep(env_id=self.curr_env_id,
+                             step_type=StepType.LAST if timestep.reward > 0 else timestep.step_type,
+                             instruction=self.instruction,
+                             prev_obs=self.prev_obs,
+                             prev_act=None,
+                             curr_obs=timestep.observation,
+                             curr_rew=timestep.reward) 
+    
+    # copy curr_obs to self.prev_obs
+    prev_obs = {}
+    for k, v in timestep.curr_obs.items():
+      if k == "pixel":
+        prev_obs[k] = copy.deepcopy(timestep.curr_obs[k])
+      elif k == "text":
+        prev_obs[k], timestep.curr_obs[k] = tee(timestep.curr_obs[k])
+    self.prev_obs = prev_obs
+    
     return timestep
 
   def close(self) -> None:
     """Cleans up running processes, threads and local files."""
-    logging.info('Cleaning up AndroidEnv...')
+    logging.info('Cleaning up B-MoCA...')
     if hasattr(self, '_coordinator'):
       self._coordinator.close()
-    logging.info('Done cleaning up AndroidEnv.')
+    self.appium_process.terminate()
+    logging.info('Done cleaning up B-MoCA.')
     
   def observation_spec(self):
     raise NotImplementedError

@@ -1,0 +1,21 @@
+This file specifies the name and the version of the third-party apps.
+To replicate the environment used in our experiment, please download the apk files with the specified version below.
+The ```install.bash``` will automatically install all the apk files in ```asset/environments/resource/apks``` directory
+
+In the version information, the values in the parentheses specifies the CPU architecture and DPI. 
+Please download the correct version.
+
+- Instagram (by Instagram)
+    - Version: 325.0.0.35.91 (372509503)
+
+- Wikipedia (by Wikipedia Foundation)
+    - Version:  2.7.50484-r-2024-04-19 (50484)
+
+- Snapseed (by Google LLC)
+    - Version: 2.20.0.526050212 (1251211)
+
+- Walmart (by Walmart)
+    - Version: 24.19 (24190029)
+
+- Calculator (by Google LLC)
+    - Version: 8.6 (612662282) (85005407)

@@ -1,0 +1,21 @@
+reset_steps:[
+  { 
+    adb_request: { 
+      press_button: { 
+        button: HOME  
+      }
+    }
+  }
+]
+
+max_episode_steps: 8
+
+log_parsing_config: {
+  filters: ["ActivityTaskManager:I"]
+  log_regexps: {
+    reward_event: {
+        event: "This task is independent to logcat logging. Please Ignore this string."
+        reward: 0
+    }
+  }
+}
