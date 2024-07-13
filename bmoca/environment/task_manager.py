@@ -40,234 +40,248 @@ from bmoca.environment.evaluator_script.evaluator import Evaluator
 
 
 class TaskManager:
-  """Handles all events and information related to the task."""
+    """Handles all events and information related to the task."""
 
-  def __init__(
-      self,
-      task: task_pb2.Task,
-      instruction: str,
-      max_bad_states: int = 3,
-      max_failed_current_activity: int = 10,
-  ):
-    """Controls task-relevant events and information.
+    def __init__(
+        self,
+        task: task_pb2.Task,
+        instruction: str,
+        max_bad_states: int = 3,
+        max_failed_current_activity: int = 10,
+    ):
+        """Controls task-relevant events and information.
 
-    Args:
-      task: A task proto defining the RL task.
-      max_bad_states: How many bad states in a row are allowed before a restart
-        of the simulator is triggered.
-      dumpsys_check_frequency: Frequency, in steps, at which to check
-        current_activity and view hierarchy
-      max_failed_current_activity: The maximum number of tries for extracting
-        the current activity before forcing the episode to restart.
-      extras_max_buffer_size: The maximum number of extras elements to store. If
-        this number is exceeded, elements are dropped in the order they were
-        received.
-    """
-    self._task = task
-    self._max_bad_states = max_bad_states
-    self._max_failed_current_activity = max_failed_current_activity
-    self._driver = None
-    self._instruction = instruction
-    self._evaluator = Evaluator(instruction)
+        Args:
+          task: A task proto defining the RL task.
+          max_bad_states: How many bad states in a row are allowed before a restart
+            of the simulator is triggered.
+          dumpsys_check_frequency: Frequency, in steps, at which to check
+            current_activity and view hierarchy
+          max_failed_current_activity: The maximum number of tries for extracting
+            the current activity before forcing the episode to restart.
+          extras_max_buffer_size: The maximum number of extras elements to store. If
+            this number is exceeded, elements are dropped in the order they were
+            received.
+        """
+        self._task = task
+        self._max_bad_states = max_bad_states
+        self._max_failed_current_activity = max_failed_current_activity
+        self._driver = None
+        self._instruction = instruction
+        self._evaluator = Evaluator(instruction)
 
-    self._lock = threading.Lock()
-    self._logcat_thread = None
-    self._setup_step_interpreter = None
+        self._lock = threading.Lock()
+        self._logcat_thread = None
+        self._setup_step_interpreter = None
 
-    # Initialize stats.
-    self._stats = {
-        'episode_steps': 0,
-        'reset_count_step_timeout': 0,
-        'reset_count_user_exited': 0,
-        'reset_count_episode_end': 0,
-        'reset_count_max_duration_reached': 0,
-        'restart_count_max_bad_states': 0,
-        'task_updates': 0,
-    }
+        # Initialize stats.
+        self._stats = {
+            "episode_steps": 0,
+            "reset_count_step_timeout": 0,
+            "reset_count_user_exited": 0,
+            "reset_count_episode_end": 0,
+            "reset_count_max_duration_reached": 0,
+            "restart_count_max_bad_states": 0,
+            "task_updates": 0,
+        }
 
-    # Initialize internal state
-    self._task_start_time = None
-    self._bad_state_counter = 0
-    self._is_bad_episode = False
+        # Initialize internal state
+        self._task_start_time = None
+        self._bad_state_counter = 0
+        self._is_bad_episode = False
 
-    self._latest_values = {
-        'reward': 0.0,
-        'score': 0.0,
-        'extra': {},
-        'episode_end': False,
-    }
+        self._latest_values = {
+            "reward": 0.0,
+            "score": 0.0,
+            "extra": {},
+            "episode_end": False,
+        }
 
-    logging.debug('Task config: %s', self._task)
+        logging.debug("Task config: %s", self._task)
 
-  def stats(self) -> dict[str, Any]:
-    """Returns a dictionary of stats.
+    def stats(self) -> dict[str, Any]:
+        """Returns a dictionary of stats.
 
-    This method is expected to be called after setup_task() has been called.
-    """
-    output = copy.deepcopy(self._stats)
-    if self._setup_step_interpreter is not None:
-      output.update(self._setup_step_interpreter.stats())
-    return output
+        This method is expected to be called after setup_task() has been called.
+        """
+        output = copy.deepcopy(self._stats)
+        if self._setup_step_interpreter is not None:
+            output.update(self._setup_step_interpreter.stats())
+        return output
 
-  def setup_task(self) -> None:
-    """Performs one-off task setup.."""
-    self._setup_step_interpreter.interpret(self._task.setup_steps)
+    def setup_task(self) -> None:
+        """Performs one-off task setup.."""
+        self._setup_step_interpreter.interpret(self._task.setup_steps)
 
-  def stop(self) -> None:
-    """Suspends task processing."""
-    self._stop_logcat_thread()
+    def stop(self) -> None:
+        """Suspends task processing."""
+        self._stop_logcat_thread()
 
-  def start(
-      self,
-      adb_call_parser_factory: Callable[[], adb_call_parser_lib.AdbCallParser],
-      log_stream: log_stream_lib.LogStream) -> None:
-    """Starts task processing."""
+    def start(
+        self,
+        adb_call_parser_factory: Callable[[], adb_call_parser_lib.AdbCallParser],
+        log_stream: log_stream_lib.LogStream,
+    ) -> None:
+        """Starts task processing."""
 
-    self._start_logcat_thread(log_stream=log_stream)
-    self._logcat_thread.resume()
-    # self._start_dumpsys_thread(adb_call_parser_factory())
-    self._start_setup_step_interpreter(adb_call_parser_factory())
+        self._start_logcat_thread(log_stream=log_stream)
+        self._logcat_thread.resume()
+        # self._start_dumpsys_thread(adb_call_parser_factory())
+        self._start_setup_step_interpreter(adb_call_parser_factory())
 
-  def reset_task(self) -> None:
-    """Resets a task for a new run."""
+    def reset_task(self) -> None:
+        """Resets a task for a new run."""
 
-    self._logcat_thread.pause()
-    self._setup_step_interpreter.interpret(self._task.reset_steps)
-    self._logcat_thread.resume()
+        self._logcat_thread.pause()
+        self._setup_step_interpreter.interpret(self._task.reset_steps)
+        self._logcat_thread.resume()
 
-    # Reset some other variables.
-    if not self._is_bad_episode:
-      self._bad_state_counter = 0
-    self._is_bad_episode = False
+        # Reset some other variables.
+        if not self._is_bad_episode:
+            self._bad_state_counter = 0
+        self._is_bad_episode = False
 
-    self._task_start_time = datetime.datetime.now()
-    with self._lock:
-      self._latest_values = {
-          'reward': 0.0,
-          'score': 0.0,
-          'extra': {},
-          'episode_end': False,
-      }
+        self._task_start_time = datetime.datetime.now()
+        with self._lock:
+            self._latest_values = {
+                "reward": 0.0,
+                "score": 0.0,
+                "extra": {},
+                "episode_end": False,
+            }
 
-  def rl_reset(self, observation: dict[str, Any]) -> dm_env.TimeStep:
-    """Performs one RL step."""
+    def rl_reset(self, observation: dict[str, Any]) -> dm_env.TimeStep:
+        """Performs one RL step."""
 
-    self._stats['episode_steps'] = 0
-    
-    self._logcat_thread.line_ready().wait()
-    
-    return dm_env.TimeStep(
-        step_type=dm_env.StepType.FIRST,
-        reward=0.0,
-        discount=0.0,
-        observation=observation)
+        self._stats["episode_steps"] = 0
 
-  def rl_step(self, observation: dict[str, Any]) -> dm_env.TimeStep:
-    """Performs one RL step."""
-    self._stats['episode_steps'] += 1
+        self._logcat_thread.line_ready().wait()
 
-    self._logcat_thread.line_ready().wait()
-    with self._lock:
-      reward = self._get_current_reward()
-      transition_fn = self._determine_transition_fn()
-      
-    if self._evaluator.success_detector(self._driver):
-      return dm_env.termination(reward=1.0, observation=observation)
+        return dm_env.TimeStep(
+            step_type=dm_env.StepType.FIRST,
+            reward=0.0,
+            discount=0.0,
+            observation=observation,
+        )
 
-    return transition_fn(reward=reward, observation=observation)
+    def rl_step(self, observation: dict[str, Any]) -> dm_env.TimeStep:
+        """Performs one RL step."""
+        self._stats["episode_steps"] += 1
 
-  def _get_current_reward(self) -> float:
-    """Returns total reward accumulated since the last step."""
-    reward = self._latest_values['reward']
-    self._latest_values['reward'] = 0.0
-    return reward
+        self._logcat_thread.line_ready().wait()
+        with self._lock:
+            reward = self._get_current_reward()
+            transition_fn = self._determine_transition_fn()
 
-  def _determine_transition_fn(self) -> Callable[..., dm_env.TimeStep]:
-    """Determines the type of RL transition will be used."""
+        if self._evaluator.success_detector(self._driver):
+            return dm_env.termination(reward=1.0, observation=observation)
 
-    # Check if episode has ended
-    if self._latest_values['episode_end']:
-      self._stats['reset_count_episode_end'] += 1
-      logging.debug('End of episode from logcat! Ending episode.')
-      return dm_env.termination
+        return transition_fn(reward=reward, observation=observation)
 
-    # Check if step limit or time limit has been reached
-    if self._task.max_episode_steps > 0:
-      if self._stats['episode_steps'] >= self._task.max_episode_steps:
-        self._stats['reset_count_max_duration_reached'] += 1
-        logging.debug('Maximum task duration (%r steps) reached. '
-                     'Truncating the episode.', self._task.max_episode_steps)
-        return dm_env.truncation
+    def _get_current_reward(self) -> float:
+        """Returns total reward accumulated since the last step."""
+        reward = self._latest_values["reward"]
+        self._latest_values["reward"] = 0.0
+        return reward
 
-    return dm_env.transition
+    def _determine_transition_fn(self) -> Callable[..., dm_env.TimeStep]:
+        """Determines the type of RL transition will be used."""
 
-  def _start_setup_step_interpreter(
-      self, adb_call_parser: adb_call_parser_lib.AdbCallParser):
-    self._setup_step_interpreter = setup_step_interpreter.SetupStepInterpreter(
-        adb_call_parser=adb_call_parser)
+        # Check if episode has ended
+        if self._latest_values["episode_end"]:
+            self._stats["reset_count_episode_end"] += 1
+            logging.debug("End of episode from logcat! Ending episode.")
+            return dm_env.termination
 
-  def _start_logcat_thread(self, log_stream: log_stream_lib.LogStream):
-    log_stream.set_log_filters(list(self._task.log_parsing_config.filters))
-    self._logcat_thread = logcat_thread.LogcatThread(log_stream=log_stream)
+        # Check if step limit or time limit has been reached
+        if self._task.max_episode_steps > 0:
+            if self._stats["episode_steps"] >= self._task.max_episode_steps:
+                self._stats["reset_count_max_duration_reached"] += 1
+                logging.debug(
+                    "Maximum task duration (%r steps) reached. "
+                    "Truncating the episode.",
+                    self._task.max_episode_steps,
+                )
+                return dm_env.truncation
 
-    for event_listener in self._logcat_listeners():
-      self._logcat_thread.add_event_listener(event_listener)
+        return dm_env.transition
 
-  def _stop_logcat_thread(self):
-    if self._logcat_thread is not None:
-      self._logcat_thread.kill()
-      self._logcat_thread = None
+    def _start_setup_step_interpreter(
+        self, adb_call_parser: adb_call_parser_lib.AdbCallParser
+    ):
+        self._setup_step_interpreter = setup_step_interpreter.SetupStepInterpreter(
+            adb_call_parser=adb_call_parser
+        )
 
-  def _increment_bad_state(self) -> None:
-    """Increments the bad state counter.
+    def _start_logcat_thread(self, log_stream: log_stream_lib.LogStream):
+        log_stream.set_log_filters(list(self._task.log_parsing_config.filters))
+        self._logcat_thread = logcat_thread.LogcatThread(log_stream=log_stream)
 
-    Bad states are errors that shouldn't happen and that trigger an
-    episode reset. If enough bad states have been seen consecutively,
-    we restart the simulation in the hope of returning the simulation
-    to a good state.
-    """
-    logging.warning('Bad state detected.')
-    if self._max_bad_states:
-      self._is_bad_episode = True
-      self._bad_state_counter += 1
-      logging.warning('Bad state counter: %d.', self._bad_state_counter)
-      if self._bad_state_counter >= self._max_bad_states:
-        logging.error('Too many consecutive bad states. Restarting simulator.')
-        self._stats['restart_count_max_bad_states'] += 1
-        self._should_restart = True
-    else:
-      logging.warning('Max bad states not set, bad states will be ignored.')
+        for event_listener in self._logcat_listeners():
+            self._logcat_thread.add_event_listener(event_listener)
 
-  def _logcat_listeners(self):
-    """Creates list of EventListeners for logcat thread."""
+    def _stop_logcat_thread(self):
+        if self._logcat_thread is not None:
+            self._logcat_thread.kill()
+            self._logcat_thread = None
 
-    # Defaults to 'a^' since that regex matches no string by definition.
-    regexps = self._task.log_parsing_config.log_regexps
-    listeners = []
+    def _increment_bad_state(self) -> None:
+        """Increments the bad state counter.
 
-    # Reward listeners
-    def _reward_handler(event, match):
-      del event
-      reward = float(match.group(1))
-      with self._lock:
-        self._latest_values['reward'] += reward
+        Bad states are errors that shouldn't happen and that trigger an
+        episode reset. If enough bad states have been seen consecutively,
+        we restart the simulation in the hope of returning the simulation
+        to a good state.
+        """
+        logging.warning("Bad state detected.")
+        if self._max_bad_states:
+            self._is_bad_episode = True
+            self._bad_state_counter += 1
+            logging.warning("Bad state counter: %d.", self._bad_state_counter)
+            if self._bad_state_counter >= self._max_bad_states:
+                logging.error("Too many consecutive bad states. Restarting simulator.")
+                self._stats["restart_count_max_bad_states"] += 1
+                self._should_restart = True
+        else:
+            logging.warning("Max bad states not set, bad states will be ignored.")
 
-    for regexp in regexps.reward:
-      listeners.append(logcat_thread.EventListener(
-          regexp=re.compile(regexp or 'a^'),
-          handler_fn=_reward_handler))
+    def _logcat_listeners(self):
+        """Creates list of EventListeners for logcat thread."""
 
-    # RewardEvent listeners
-    for reward_event in regexps.reward_event:
-      def get_reward_event_handler(reward):
-        def _reward_event_handler(event, match):
-          del event, match
-          with self._lock:
-            self._latest_values['reward'] += reward
-        return _reward_event_handler
+        # Defaults to 'a^' since that regex matches no string by definition.
+        regexps = self._task.log_parsing_config.log_regexps
+        listeners = []
 
-      listeners.append(logcat_thread.EventListener(
-          regexp=re.compile(reward_event.event or 'a^'),
-          handler_fn=get_reward_event_handler(reward_event.reward)))
-    
-    return listeners
+        # Reward listeners
+        def _reward_handler(event, match):
+            del event
+            reward = float(match.group(1))
+            with self._lock:
+                self._latest_values["reward"] += reward
+
+        for regexp in regexps.reward:
+            listeners.append(
+                logcat_thread.EventListener(
+                    regexp=re.compile(regexp or "a^"), handler_fn=_reward_handler
+                )
+            )
+
+        # RewardEvent listeners
+        for reward_event in regexps.reward_event:
+
+            def get_reward_event_handler(reward):
+                def _reward_event_handler(event, match):
+                    del event, match
+                    with self._lock:
+                        self._latest_values["reward"] += reward
+
+                return _reward_event_handler
+
+            listeners.append(
+                logcat_thread.EventListener(
+                    regexp=re.compile(reward_event.event or "a^"),
+                    handler_fn=get_reward_event_handler(reward_event.reward),
+                )
+            )
+
+        return listeners

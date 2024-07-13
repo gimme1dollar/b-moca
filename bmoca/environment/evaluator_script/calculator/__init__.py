@@ -8,3 +8,12 @@ from .cos60 import check_cos60
 from .cos180 import check_cos180
 from .factorial_6 import check_factorial_6
 from .sqrt_25 import check_sqrt_25
+from .fibonaccis import check_5_fibonaccis
+from .prime_numbers import check_5_prime_numbers
+from .ten_choose_two import check_10_choose_2
+from .log_1234 import check_log_1234
+from .five_choose_two import check_5_choose_2
+from .harmonic_mean import check_harmonic_mean
+from .geometric_mean import check_geometric_mean
+from .convert_45 import convert_45_degrees_to_rad
+from .percent import check_50_percent_of_28

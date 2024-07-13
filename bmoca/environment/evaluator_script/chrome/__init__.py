@@ -1,0 +1,1 @@
+from .chrome_newtab import check_new_tab

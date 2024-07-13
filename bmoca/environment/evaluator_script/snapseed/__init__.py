@@ -6,3 +6,6 @@ from .open_image import check_open_image
 from .open_snapseed import check_open_snapseed
 from .open_tools import check_open_tools
 from .portrait_filter import check_portrait_filter
+from .filter_after_quality import check_apply_filter_after_quality
+from .filter_after_sizing import check_appy_filter_after_sizing
+from .filter_after_theme import check_apply_filter_after_theme

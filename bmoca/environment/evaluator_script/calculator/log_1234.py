@@ -1,0 +1,11 @@
+from appium.webdriver.common.appiumby import AppiumBy
+
+def check_log_1234(driver):
+    try:
+        formula_UI = driver.find_element(AppiumBy.ID, 'com.google.android.calculator:id/formula')
+        formula = formula_UI.get_attribute("text")
+        
+        return formula == 'l1234'
+    except Exception:
+        return False
+    

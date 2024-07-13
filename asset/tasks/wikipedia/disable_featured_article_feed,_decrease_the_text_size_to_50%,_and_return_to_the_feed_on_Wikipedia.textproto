@@ -8,14 +8,14 @@ reset_steps:[
   }
 ]
 
-max_episode_steps: 5
+max_episode_steps: 17
 
 log_parsing_config: {
-  filters: ["Telecom:I"]
+  filters: ["ActivityTaskManager:I"]
   log_regexps: {
     reward_event: {
-        event: "^(.*?)LogUtils(.*?)EventRecord added as Call"
-        reward: 1
+        event: "This task is independent to logcat logging. Please Ignore this string."
+        reward: 0
     }
   }
 }

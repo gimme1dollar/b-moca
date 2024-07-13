@@ -3,12 +3,12 @@ import json
 import time
 import subprocess
 import xml.etree.ElementTree as ET
+from appium.webdriver.common.appiumby import AppiumBy
 
 _WORK_PATH = os.environ["BMOCA_HOME"]
 
 
-def check_dark_theme(driver):
-
+def check_apply_filter_after_theme(driver):
     try:
         command = "adb shell"
         process = subprocess.Popen(
@@ -39,7 +39,13 @@ def check_dark_theme(driver):
                 dark_theme_value = elem.get("value")
                 break
 
-        return dark_theme_value == "true"
+        theme_set = dark_theme_value == "true"
+
+        s03_UI = driver.find_element(
+            AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("S03")'
+        )
+
+        return theme_set and s03_UI.get_attribute("selected") == "true"
 
     except:
         return False

@@ -1,14 +1,13 @@
 import os
-import json
 import time
 import subprocess
 import xml.etree.ElementTree as ET
+from appium.webdriver.common.appiumby import AppiumBy
 
 _WORK_PATH = os.environ["BMOCA_HOME"]
 
 
-def check_dark_theme(driver):
-
+def check_text_size_180(driver):
     try:
         command = "adb shell"
         process = subprocess.Popen(
@@ -22,24 +21,21 @@ def check_dark_theme(driver):
         process.stdin.write("su\n")
         process.stdin.flush()
         process.stdin.write(
-            "cp /data/data/com.niksoftware.snapseed/shared_prefs/Preferences.xml /sdcard/Preferences.xml\n"
+            "cp /data/data/org.wikipedia/shared_prefs/org.wikipedia_preferences.xml /sdcard/org.wikipedia_preferences.xml\n"
         )
         process.stdin.flush()
         time.sleep(0.5)
-        command = f"adb pull /sdcard/Preferences.xml {_WORK_PATH}/bmoca/environment/evaluator_script/snapseed\n"
+        command = f"adb pull /sdcard/org.wikipedia_preferences.xml {_WORK_PATH}/bmoca/environment/evaluator_script/wikipedia\n"
         _ = subprocess.run(command, text=True, shell=True)
 
         tree = ET.parse(
-            f"{_WORK_PATH}/bmoca/environment/evaluator_script/snapseed/Preferences.xml"
+            f"{_WORK_PATH}/bmoca/environment/evaluator_script/wikipedia/org.wikipedia_preferences.xml"
         )
         root = tree.getroot()
+        text_size_multiplier = root.find(".//int[@name='textSizeMultiplier']").attrib[
+            "value"
+        ]
 
-        for elem in root.findall("boolean"):
-            if elem.get("name") == "pref_appearance_use_dark_theme":
-                dark_theme_value = elem.get("value")
-                break
-
-        return dark_theme_value == "true"
-
+        return text_size_multiplier == "8"
     except:
-        return False
+        False

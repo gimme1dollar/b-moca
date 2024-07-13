@@ -4,10 +4,10 @@ import subprocess
 import xml.etree.ElementTree as ET
 from appium.webdriver.common.appiumby import AppiumBy
 
-_WORK_PATH = os.environ['BMOCA_HOME']
+_WORK_PATH = os.environ["BMOCA_HOME"]
 
-def check_disable_odd(driver):
-    
+
+def check_disable_day_topics(driver):
     command = 'adb shell'
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
     process.stdin.write('su\n')
@@ -21,7 +21,7 @@ def check_disable_odd(driver):
     tree = ET.parse(f'{_WORK_PATH}/bmoca/environment/evaluator_script/wikipedia/org.wikipedia_preferences.xml')
     root = tree.getroot()
     curr_state = root[-1].text
-    target_state = '[false,true,false,true,false,true,false,true,true,true]'
+    target_state = '[true,true,false,true,true,false,true,true,true,true]'
     
     try:
         feed_UI = driver.find_element(AppiumBy.ID, 
