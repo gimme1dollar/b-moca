@@ -26,7 +26,13 @@ def load_config(config_path=f"{_WORK_PATH}/config/foundation_model_config.yaml")
     return configs
 
 
-def parse_obs(obs, height_width=None, skip_non_leaf=False, attribute_check=False):
+def parse_obs(
+    obs,
+    height_width=None,
+    skip_non_leaf=False,
+    attribute_check=True,
+    attribute_bbox=False,
+):
     parsed_obs = []
     parsed_bbox = []
 
@@ -40,48 +46,37 @@ def parse_obs(obs, height_width=None, skip_non_leaf=False, attribute_check=False
         # category description
         resource_id = ""
         if "resource-id" in elem.attrib and elem.attrib["resource-id"]:
-            resource_desc = (
-                elem.attrib["resource-id"].replace(":", ".").replace("/", "_")
-            )
-            resource_id = resource_desc.split(".")[-1]
-        if skip_non_leaf and resource_id == "":
-            continue
+            resource_id = elem.attrib["resource-id"]
+            resource_id = resource_id.split("/")[-1]
 
         # class
-        class_desc = f"{elem.attrib['class']}"
-        class_name = class_desc.split(".")[-1]
+        class_name = ""
+        if "class" in elem.attrib and elem.attrib["class"]:
+            class_name = elem.attrib["class"].split(".")[-1]
 
-        # detailed description
-        description = ""
+        # content description
+        content_desc = ""
         if "content-desc" in elem.attrib and (elem.attrib["content-desc"] != ""):
-            content_desc = (
-                elem.attrib["content-desc"]
-                .replace("/", "_")
-                .replace(" ", "")
-                .replace(":", "_")
-            )
-            description = f"{content_desc}"
-        elif "text" in elem.attrib and (elem.attrib["text"] != ""):
-            text = (
-                elem.attrib["text"]
-                .lower()
-                .replace("/", "_")
-                .replace(",", "")
-                .replace(" ", "_")
-                .replace(":", "_")
-            )
-            description = f"{text}"
+            content_desc = elem.attrib["content-desc"]
+        if skip_non_leaf and content_desc == "":
+            continue
+
+        # text
+        text_desc = ""
+        if "text" in elem.attrib and (elem.attrib["text"] != ""):
+            text_desc = elem.attrib["text"]
 
         # checked
-        checked_or_selected = "false"
-        if "checkable" in elem.attrib and (elem.attrib["checkable"] != ""):
-            if elem.attrib["checkable"] == "true":
-                if "checked" in elem.attrib and (elem.attrib["checked"] != ""):
-                    if elem.attrib["checked"] == "true":
-                        checked_or_selected = "true"
+        checked = "false"
+        if "checked" in elem.attrib and (elem.attrib["checked"] != ""):
+            if elem.attrib["checked"] == "true":
+                checked = "true"
         if "selected" in elem.attrib and (elem.attrib["selected"] != ""):
             if elem.attrib["selected"] == "true":
-                checked_or_selected = "true"
+                checked = "true"
+        if "focused" in elem.attrib and (elem.attrib["focused"] != ""):
+            if elem.attrib["focused"] == "true":
+                checked = "true"
 
         # bbox location
         bounds = elem.attrib["bounds"][1:-1].split("][")
@@ -93,10 +88,11 @@ def parse_obs(obs, height_width=None, skip_non_leaf=False, attribute_check=False
         parsed_elem["numeric_tag"] = len(parsed_obs)
         parsed_elem["resource_id"] = resource_id
         parsed_elem["class"] = class_name
-        parsed_elem["description"] = description
+        parsed_elem["content_description"] = content_desc
+        parsed_elem["text"] = text_desc
         if attribute_check:
-            parsed_elem["checked"] = checked_or_selected
-        if ("slider" in description) or ("settings.id_label" in description):
+            parsed_elem["checked"] = checked
+        if attribute_bbox:
             height, width = height_width
             parsed_elem["bbox location"] = (
                 f"(({x1/width:0.2f}, {y1/height:0.2f}), ({x2/width:0.2f}, {y2/height:0.2f}))"
