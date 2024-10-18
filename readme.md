@@ -196,10 +196,10 @@ python demonstration/human_demo_text_action.py
 #### Evaluation
 
 ```
-python experiments/agent/gemini/evaluate.py --num_few_shot 0 # zero-shot
+python experiments/agent/closed_source/gemini1.5/evaluate.py --num_few_shot 0 # zero-shot
 ```
 ```
-python experiments/agent/gpt4o/evaluate.py --num_few_shot 0 # zero-shot
+python experiments/agent/closed_source/gpt4o/evaluate.py --num_few_shot 0 # zero-shot
 ```
 
 
