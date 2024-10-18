@@ -190,7 +190,7 @@ Users can also configure own environments by modifying files in ```asset/environ
 #### Demo Collection (optional)
 
 ```
-python experiments/demonstration/human_demo_text_action.py
+python demonstration/human_demo_text_action.py
 ```
 
 #### Evaluation
@@ -208,20 +208,40 @@ python experiments/agent/gpt4o/evaluate.py --num_few_shot 0 # zero-shot
 #### Demo Collection (optional)
 
 ```
-python experiments/demonstration/human_demo_text_action.py
+python demonstration/human_demo_text_action.py
 ```
 
 #### Evaluation
 
 ```
-python experiments/agent/gemini/evaluate.py --multi_modal --num_few_shot 0 #zero-shot
+python experiments/agent/closed_source/gemini1.5/evaluate.py --multi_modal --num_few_shot 0 #zero-shot
 ```
 ```
-python experiments/agent/gpt4o/evaluate.py --multi_modal --num_few_shot 0 # zero-shot
+python experiments/agent/closed_source/gpt4o/evaluate.py --multi_modal --num_few_shot 0 # zero-shot
+```
+
+### Custom Agent (Llama-3)
+
+#### Demo Collection
+
+```
+python demonstration/human_demo_text_action.py
+```
+
+#### Training
+
+```
+python experiments/agent/custom/llama3/train.py
+```
+
+#### Evaluation
+
+```
+python experiments/agent/custom/llama3/evaluate.py --lora_path="path_to_checkpoint"
 ```
 
 
-### Custom Agent
+### Custom Agent (VLM Encoder)
 
 **Note**
 Make sure to download Auto-UI-Base.zip from https://huggingface.co/cooelf/Auto-UI/tree/main/ and unzip the file into "asset/agent/Auto-UI-Base" before using custom agents. 
@@ -230,19 +250,19 @@ The custom agents utilize the pretrained Auto-UI model as text encoders.
 #### Demo Collection
 
 ```
-python experiments/demonstration/human_demo_dual_gesture.py
+python demonstration/human_demo_dual_gesture.py
 ```
 
 #### Training
 
 ```
-python experiments/agent/bc/train.py
+python experiments/agent/custom/vlm_encoder/train.py
 ```
 
 #### Evaluation
 
 ```
-python experiments/agent/bc/evaluate.py --model_path="path_to_checkpoint"
+python experiments/agent/custom/vlm_encoder/evaluate.py --model_path="path_to_checkpoint"
 ```
 
 
